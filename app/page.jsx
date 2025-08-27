@@ -1,7 +1,9 @@
-// @ts-nocheck
-'use client';
-
+'use client'
 import React, { useMemo, useState } from "react";
+
+// Propel MVP – single-file React demo
+// Added: Student Apply flow + richer profiles (story, job, aspirations) + Need Score (Debt/Income)
+// NEW: Upload verification (PDF/Image) during application + in-profile viewer modal
 
 function classNames(...cls) { return cls.filter(Boolean).join(" "); }
 
@@ -16,6 +18,11 @@ const SAMPLE_STUDENTS = [
     paymentsRemaining: 36,
     statementMonth: "Aug 2025",
     taxEligible: true,
+    employer: "StartUp Co.",
+    jobTitle: "Frontend Engineer",
+    salary: 82000,
+    story: "First‑gen college grad from upstate NY. Scholarships covered tuition gaps, but living costs drove loans. Mentors peers in CS club.",
+    aspirations: "Launch a mentorship program for women in tech and pay it forward at Colgate.",
   },
   {
     id: "s2",
@@ -27,6 +34,11 @@ const SAMPLE_STUDENTS = [
     paymentsRemaining: 108,
     statementMonth: "Aug 2025",
     taxEligible: true,
+    employer: "Community Bank",
+    jobTitle: "Credit Analyst",
+    salary: 64000,
+    story: "Raised by a single parent, worked two campus jobs. Focused on financial inclusion research.",
+    aspirations: "Earn a CFA and build products for underserved borrowers.",
   },
   {
     id: "s3",
@@ -38,6 +50,11 @@ const SAMPLE_STUDENTS = [
     paymentsRemaining: 118,
     statementMonth: "Aug 2025",
     taxEligible: true,
+    employer: "City of LA",
+    jobTitle: "Policy Fellow",
+    salary: 52000,
+    story: "Interned in city gov during wildfires; passionate about climate resilience and housing.",
+    aspirations: "Run a nonprofit focused on climate adaptation for low‑income neighborhoods.",
   },
   {
     id: "s4",
@@ -49,6 +66,11 @@ const SAMPLE_STUDENTS = [
     paymentsRemaining: 28,
     statementMonth: "Jul 2025",
     taxEligible: true,
+    employer: "UM Health",
+    jobTitle: "RN (Pediatrics)",
+    salary: 76000,
+    story: "Volunteered in pediatric oncology; took extra shifts through the pandemic.",
+    aspirations: "Become a nurse practitioner and expand pediatric care access in rural areas.",
   },
   {
     id: "s5",
@@ -60,6 +82,11 @@ const SAMPLE_STUDENTS = [
     paymentsRemaining: 124,
     statementMonth: "Aug 2025",
     taxEligible: true,
+    employer: "CleanWind Inc.",
+    jobTitle: "Design Engineer",
+    salary: 88000,
+    story: "Built low‑cost turbines in senior design; family supports younger siblings.",
+    aspirations: "File a patent for modular micro‑turbines for schools and clinics.",
   },
   {
     id: "s6",
@@ -71,18 +98,29 @@ const SAMPLE_STUDENTS = [
     paymentsRemaining: 22,
     statementMonth: "Aug 2025",
     taxEligible: true,
+    employer: "Nonprofit Collective",
+    jobTitle: "Program Coordinator",
+    salary: 51000,
+    story: "First‑gen US citizen; led campus food security initiative.",
+    aspirations: "Grow into program management and start a food systems nonprofit.",
   },
 ];
 
 const SCHOOL_COLORS = {
   "Colgate University": "from-rose-100 to-rose-50",
-  "UCLA": "from-blue-100 to-blue-50",
+  UCLA: "from-blue-100 to-blue-50",
   "University of Michigan": "from-yellow-100 to-yellow-50",
   "Columbia University": "from-sky-100 to-sky-50",
 };
 
-function currency(n) {
-  return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+function currency(n) { return n.toLocaleString(undefined, { style: "currency", currency: "USD" }); }
+
+function needScore({ remainingBalance, salary, paymentsRemaining }) {
+  // Debt-to-Income as core signal; normalized to 0–100 where higher = higher need
+  const dti = salary > 0 ? remainingBalance / salary : 2; // cap effect if salary missing
+  const dtiScore = Math.max(0, Math.min(100, Math.round((dti / 2) * 100))); // dti 0..2 → 0..100
+  const termBoost = Math.min(20, Math.floor(paymentsRemaining / 6)); // up to +20 for long runway
+  return Math.max(0, Math.min(100, dtiScore + termBoost));
 }
 
 function ProgressBar({ value, total }) {
@@ -94,15 +132,22 @@ function ProgressBar({ value, total }) {
   );
 }
 
-// Avoid Tailwind purge issues by mapping tones to static class strings
-const TONES = {
-  slate: "bg-slate-100 text-slate-800",
-  emerald: "bg-emerald-100 text-emerald-800",
-};
-function Pill({ children, tone = "slate" }) {
-  const toneCls = TONES[tone] || TONES.slate;
+function ScoreBar({ score }) {
   return (
-    <span className={classNames("inline-flex items-center rounded-full px-3 py-1 text-xs font-medium", toneCls)}>{children}</span>
+    <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden" title={`Need Score: ${score}`}>
+      <div className="h-2.5 bg-orange-500" style={{ width: `${score}%` }} />
+    </div>
+  );
+}
+
+function Pill({ children, tone = "slate" }) {
+  const toneMap = {
+    slate: "bg-slate-100 text-slate-800",
+    emerald: "bg-emerald-100 text-emerald-800",
+    orange: "bg-orange-100 text-orange-800",
+  };
+  return (
+    <span className={classNames("inline-flex items-center rounded-full px-3 py-1 text-xs font-medium", toneMap[tone] || toneMap.slate)}>{children}</span>
   );
 }
 
@@ -119,6 +164,7 @@ function TopNav({ onNavigate, route }) {
             { id: "home", label: "Home" },
             { id: "students", label: "Students" },
             { id: "funds", label: "College Funds" },
+            { id: "apply", label: "Apply" },
             { id: "about", label: "About" },
           ].map((l) => (
             <button
@@ -153,7 +199,7 @@ function Hero({ onNavigate }) {
             Help students <span className="text-emerald-600">rise above debt</span>.
           </h1>
           <p className="mt-4 text-gray-600 text-lg">
-            Propel is a hybrid platform uniting <span className="font-medium">tax-deductible</span> college funds with
+            Propel unites <span className="font-medium">tax-deductible college funds</span> with
             <span className="font-medium"> direct-to-student</span> giving. Transparent. Accountable. Built for scale.
           </p>
           <div className="mt-6 flex gap-3">
@@ -173,7 +219,7 @@ function Hero({ onNavigate }) {
         <div className="bg-white rounded-2xl shadow-xl p-6 border">
           <h3 className="font-semibold text-gray-900">How Propel Works</h3>
           <ol className="mt-4 space-y-3 text-gray-700">
-            <li><span className="font-medium">1) Students</span> create a verified profile with school, balance, and payment plan.</li>
+            <li><span className="font-medium">1) Students</span> apply with school, balance, and plan; share their story and aspirations.</li>
             <li><span className="font-medium">2) Donors</span> choose a <span className="font-medium">College Fund (tax-deductible)</span> or give <span className="font-medium">Direct to a Student</span>.</li>
             <li><span className="font-medium">3) Propel</span> routes payments securely and updates progress in real-time.</li>
           </ol>
@@ -187,12 +233,14 @@ function Hero({ onNavigate }) {
 function StudentCard({ s, onDonate, onOpen }) {
   const paid = s.totalBalance - s.remainingBalance;
   const pct = Math.min(100, Math.round((paid / s.totalBalance) * 100));
+  const score = needScore(s);
+  const hasVer = !!(s.verification && s.verification.name);
   return (
     <div className="bg-white rounded-2xl border shadow-sm p-5 flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-sm text-gray-500">{s.school}</div>
-          <div className="font-semibold text-gray-900">{s.name}</div>
+          <div className="font-semibold text-gray-900 flex items-center gap-2">{s.name} {hasVer && <Pill tone="emerald">Verification on file</Pill>}</div>
           <div className="text-sm text-gray-600">{s.major}</div>
         </div>
         <div className="text-right">
@@ -201,11 +249,13 @@ function StudentCard({ s, onDonate, onOpen }) {
           <div className="text-xs text-gray-500">{s.paymentsRemaining} payments left</div>
         </div>
       </div>
-      <ProgressBar value={s.remainingBalance} total={s.totalBalance} />
-      <div className="flex items-center justify-between text-sm">
-        <div className="text-gray-600">Raised: {currency(paid)} ({pct}%)</div>
+      <ScoreBar score={score} />
+      <div className="flex items-center justify-between text-xs">
+        <div className="text-gray-600">Need Score: <span className="font-medium">{score}</span>/100</div>
         <div className="text-gray-500">Stmt: {s.statementMonth}</div>
       </div>
+      <ProgressBar value={s.remainingBalance} total={s.totalBalance} />
+      <div className="text-sm text-gray-600 line-clamp-2">{s.story}</div>
       <div className="flex gap-2 mt-2">
         <button className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold" onClick={() => onDonate(s)}>Donate</button>
         <button className="px-4 py-2 rounded-xl border text-sm font-semibold hover:bg-gray-50" onClick={() => onOpen(s)}>View</button>
@@ -217,6 +267,7 @@ function StudentCard({ s, onDonate, onOpen }) {
 function StudentsPage({ data, onDonate, onOpen }) {
   const [query, setQuery] = useState("");
   const [school, setSchool] = useState("All");
+  const [minScore, setMinScore] = useState(0);
 
   const schools = useMemo(() => ["All", ...Array.from(new Set(data.map(d => d.school)))], [data]);
 
@@ -224,10 +275,11 @@ function StudentsPage({ data, onDonate, onOpen }) {
     return data.filter(d => {
       const matchSchool = school === "All" || d.school === school;
       const q = query.trim().toLowerCase();
-      const matchQuery = !q || d.name.toLowerCase().includes(q) || d.school.toLowerCase().includes(q) || d.major.toLowerCase().includes(q);
-      return matchSchool && matchQuery;
+      const matchQuery = !q || d.name.toLowerCase().includes(q) || d.school.toLowerCase().includes(q) || d.major.toLowerCase().includes(q) || (d.story||"").toLowerCase().includes(q);
+      const scoreOk = needScore(d) >= minScore;
+      return matchSchool && matchQuery && scoreOk;
     })
-  }, [data, query, school]);
+  }, [data, query, school, minScore]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -236,11 +288,16 @@ function StudentsPage({ data, onDonate, onOpen }) {
           <h2 className="text-2xl font-semibold tracking-tight">Students</h2>
           <p className="text-gray-600">Browse verified profiles and help pay down balances.</p>
         </div>
-        <div className="flex gap-3">
-          <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search name, major, school…" className="px-3 py-2 rounded-xl border w-64" />
+        <div className="flex flex-wrap gap-3 items-center">
+          <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search name, major, story…" className="px-3 py-2 rounded-xl border w-64" />
           <select value={school} onChange={(e)=>setSchool(e.target.value)} className="px-3 py-2 rounded-xl border">
             {schools.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-600">Min Need</span>
+            <input type="range" min={0} max={100} value={minScore} onChange={(e)=>setMinScore(parseInt(e.target.value,10))} />
+            <span className="text-gray-800 w-10">{minScore}</span>
+          </div>
         </div>
       </div>
 
@@ -257,6 +314,9 @@ function StudentDetail({ s, onBack, onDonate }) {
   const paid = s.totalBalance - s.remainingBalance;
   const pct = Math.min(100, Math.round((paid / s.totalBalance) * 100));
   const grad = SCHOOL_COLORS[s.school] || "from-gray-100 to-gray-50";
+  const score = needScore(s);
+  const [docOpen, setDocOpen] = useState(false);
+  const hasDoc = !!(s.verification && s.verification.dataUrl);
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <button className="text-sm text-gray-600 hover:underline" onClick={onBack}>← Back to students</button>
@@ -266,20 +326,49 @@ function StudentDetail({ s, onBack, onDonate }) {
           <h3 className="text-2xl font-semibold text-gray-900">{s.name}</h3>
           <div className="text-gray-700">{s.major}</div>
         </div>
-        <div className="p-6 space-y-4">
-          <div className="grid md:grid-cols-3 gap-4">
+        <div className="p-6 space-y-6">
+          <div className="grid md:grid-cols-4 gap-4">
             <Stat label="Total Balance" value={currency(s.totalBalance)} />
             <Stat label="Remaining" value={currency(s.remainingBalance)} />
             <Stat label="Payments Left" value={`${s.paymentsRemaining}`} />
+            <div className="rounded-xl border p-4 bg-gray-50">
+              <div className="text-xs text-gray-500">Need Score</div>
+              <div className="text-lg font-semibold text-gray-900">{score}/100</div>
+              <div className="mt-2"><ScoreBar score={score} /></div>
+            </div>
           </div>
           <ProgressBar value={s.remainingBalance} total={s.totalBalance} />
-          <div className="text-sm text-gray-600">Raised: {currency(paid)} ({pct}%) • Statement: {s.statementMonth}</div>
+          <div className="text-sm text-gray-600 flex items-center gap-3 flex-wrap">
+            <span>Raised: {currency(paid)} ({pct}%) • Statement: {s.statementMonth}</span>
+            {hasDoc && <Pill tone="emerald">Verification on file: {s.verification.name}</Pill>}
+          </div>
+
+          <section className="grid md:grid-cols-3 gap-5">
+            <div className="md:col-span-2 rounded-2xl border p-5 bg-gray-50">
+              <div className="text-sm font-semibold text-gray-900 mb-2">Story</div>
+              <p className="text-gray-700 leading-7">{s.story}</p>
+            </div>
+            <div className="rounded-2xl border p-5 bg-gray-50 space-y-2">
+              <div className="text-sm font-semibold text-gray-900">Current Job</div>
+              <div className="text-gray-700"><span className="font-medium">{s.jobTitle}</span> at {s.employer}</div>
+              <div className="text-gray-700">Salary: {s.salary ? currency(s.salary) : "—"}</div>
+              <div className="pt-2 text-sm font-semibold text-gray-900">Aspirations</div>
+              <div className="text-gray-700">{s.aspirations}</div>
+            </div>
+          </section>
+
           <div className="flex gap-3 pt-2">
             <button className="px-5 py-3 rounded-xl bg-emerald-600 text-white font-semibold" onClick={() => onDonate(s)}>Donate to {s.name.split(" ")[0]}</button>
             <button className="px-5 py-3 rounded-xl border font-semibold">View Latest Statement</button>
+            {hasDoc && (
+              <button className="px-5 py-3 rounded-xl border font-semibold" onClick={()=>setDocOpen(true)}>
+                View Uploaded Verification
+              </button>
+            )}
           </div>
         </div>
       </div>
+      <DocumentModal open={docOpen} onClose={()=>setDocOpen(false)} doc={s.verification} />
     </div>
   );
 }
@@ -371,15 +460,196 @@ function AboutPage() {
   );
 }
 
+function ApplyPage({ onSubmit }) {
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    school: "Colgate University",
+    major: "",
+    totalBalance: "",
+    remainingBalance: "",
+    paymentsRemaining: "",
+    salary: "",
+    employer: "",
+    jobTitle: "",
+    story: "",
+    aspirations: "",
+    consent: false,
+    verificationFile: null,
+    verificationName: "",
+    verificationDataUrl: "",
+    verificationMime: "",
+  });
+  const [submitted, setSubmitted] = useState(false);
+
+  function update(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
+
+  function onFileChange(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const maxBytes = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxBytes) { alert("File too large (max 10MB)"); return; }
+    const ok = ["application/pdf", "image/png", "image/jpeg", "image/jpg"]; 
+    if (!ok.includes(file.type)) { alert("Please upload a PDF or image (PNG/JPG)"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      update("verificationFile", file);
+      update("verificationName", file.name);
+      update("verificationDataUrl", reader.result);
+      update("verificationMime", file.type);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function submit(e) {
+    e.preventDefault();
+    if (!form.name || !form.email || !form.school || !form.remainingBalance) return;
+    // In a real app, the file would be uploaded to storage and we would store a URL.
+    const student = {
+      id: "s" + Math.random().toString(36).slice(2,8),
+      name: form.name,
+      school: form.school,
+      major: form.major || "",
+      totalBalance: parseInt(form.totalBalance || form.remainingBalance || 0, 10),
+      remainingBalance: parseInt(form.remainingBalance || 0, 10),
+      paymentsRemaining: parseInt(form.paymentsRemaining || 0, 10),
+      statementMonth: "Aug 2025",
+      taxEligible: true,
+      employer: form.employer || "—",
+      jobTitle: form.jobTitle || "—",
+      salary: parseInt(form.salary || 0, 10),
+      story: form.story,
+      aspirations: form.aspirations,
+      pending: true,
+      verification: form.verificationDataUrl ? {
+        name: form.verificationName,
+        mime: form.verificationMime,
+        dataUrl: form.verificationDataUrl,
+      } : null,
+    };
+    onSubmit(student);
+    setSubmitted(true);
+  }
+
+  if (submitted) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-12 text-center">
+        <div className="text-2xl font-semibold">Application received ✅</div>
+        <p className="mt-3 text-gray-700">Thanks for applying to Propel. Our team will review and verify your information. You’ll receive an email update soon.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <h2 className="text-2xl font-semibold tracking-tight">Apply to Propel</h2>
+      <p className="text-gray-600">Tell us about yourself. Upload a recent **loan statement** or other **verification** (PDF or image). Verified profiles may appear publicly once approved.</p>
+      <form className="mt-6 space-y-6" onSubmit={submit}>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Field label="Full Name" required>
+            <input className="w-full px-3 py-2 rounded-xl border" value={form.name} onChange={e=>update("name", e.target.value)} />
+          </Field>
+          <Field label="Email" required>
+            <input type="email" className="w-full px-3 py-2 rounded-xl border" value={form.email} onChange={e=>update("email", e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Field label="School" required>
+            <input className="w-full px-3 py-2 rounded-xl border" value={form.school} onChange={e=>update("school", e.target.value)} />
+          </Field>
+          <Field label="Major">
+            <input className="w-full px-3 py-2 rounded-xl border" value={form.major} onChange={e=>update("major", e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid md:grid-cols-3 gap-4">
+          <Field label="Remaining Balance (USD)" required>
+            <input type="number" className="w-full px-3 py-2 rounded-xl border" value={form.remainingBalance} onChange={e=>update("remainingBalance", e.target.value)} />
+          </Field>
+          <Field label="Total Balance (USD)">
+            <input type="number" className="w-full px-3 py-2 rounded-xl border" value={form.totalBalance} onChange={e=>update("totalBalance", e.target.value)} />
+          </Field>
+          <Field label="Payments Remaining">
+            <input type="number" className="w-full px-3 py-2 rounded-xl border" value={form.paymentsRemaining} onChange={e=>update("paymentsRemaining", e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid md:grid-cols-3 gap-4">
+          <Field label="Current Employer">
+            <input className="w-full px-3 py-2 rounded-xl border" value={form.employer} onChange={e=>update("employer", e.target.value)} />
+          </Field>
+          <Field label="Job Title">
+            <input className="w-full px-3 py-2 rounded-xl border" value={form.jobTitle} onChange={e=>update("jobTitle", e.target.value)} />
+          </Field>
+          <Field label="Annual Salary (USD)">
+            <input type="number" className="w-full px-3 py-2 rounded-xl border" value={form.salary} onChange={e=>update("salary", e.target.value)} />
+          </Field>
+        </div>
+
+        <Field label="Upload Statement / Verification (PDF or PNG/JPG)">
+          <input type="file" accept="application/pdf,image/png,image/jpeg" onChange={onFileChange} className="block w-full text-sm" />
+          {form.verificationName && (
+            <div className="mt-2 text-xs text-gray-600">Selected: {form.verificationName}</div>
+          )}
+        </Field>
+
+        <Field label="Your Story">
+          <textarea rows={4} className="w-full px-3 py-2 rounded-xl border" value={form.story} onChange={e=>update("story", e.target.value)} />
+        </Field>
+        <Field label="Aspirations">
+          <textarea rows={3} className="w-full px-3 py-2 rounded-xl border" value={form.aspirations} onChange={e=>update("aspirations", e.target.value)} />
+        </Field>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={form.consent} onChange={e=>update("consent", e.target.checked)} />
+          I consent to Propel reviewing this information and contacting me.
+        </label>
+        <div className="pt-2">
+          <button disabled={!form.name || !form.email || !form.school || !form.remainingBalance || !form.consent} className="px-5 py-3 rounded-xl bg-emerald-600 text-white font-semibold disabled:opacity-50">Submit Application</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function Field({ label, required, children }) {
+  return (
+    <label className="block">
+      <div className="text-sm text-gray-600 mb-1">{label} {required && <span className="text-red-500">*</span>}</div>
+      {children}
+    </label>
+  );
+}
+
+function DocumentModal({ open, onClose, doc }) {
+  if (!open || !doc || !doc.dataUrl) return null;
+  const isPdf = doc.mime === "application/pdf" || doc.dataUrl.startsWith("data:application/pdf");
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 grid place-items-center p-4">
+      <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden">
+        <div className="p-4 border-b flex items-center justify-between">
+          <div className="font-semibold">{doc.name}</div>
+          <button className="text-gray-500 hover:text-gray-700" onClick={onClose}>✕</button>
+        </div>
+        <div className="p-0 max-h-[80vh] overflow-auto">
+          {isPdf ? (
+            <object data={doc.dataUrl} type="application/pdf" className="w-full h-[75vh]">PDF preview unavailable. <a className="text-emerald-700 underline" href={doc.dataUrl} target="_blank" rel="noreferrer">Open</a></object>
+          ) : (
+            <img src={doc.dataUrl} alt={doc.name} className="w-full" />
+          )}
+        </div>
+        <div className="p-4 border-t text-sm flex items-center justify-between">
+          <span className="text-gray-600">For demo only. In production this would be stored securely and watermarked.</span>
+          <a href={doc.dataUrl} download={doc.name} className="px-4 py-2 rounded-xl border font-semibold hover:bg-gray-50">Download</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DonateModal({ open, onClose, student, school, onDonateConfirm }) {
   const [amount, setAmount] = useState(100);
   const [mode, setMode] = useState("tax"); // tax = nonprofit fund, direct = direct student
-
   if (!open) return null;
-
   const title = student ? `Donate to ${student.name}` : `Donate to ${school} Fund`;
   const isTax = mode === "tax";
-
   return (
     <div className="fixed inset-0 z-50 bg-black/40 grid place-items-center p-4">
       <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
@@ -458,11 +728,7 @@ function App() {
     setRoute("student");
   }
   function handleDonateFund(school, viewStudents=false) {
-    if (viewStudents) {
-      const first = students.find(x => x.school === school);
-      if (first) { setRoute("students"); }
-      return;
-    }
+    if (viewStudents) { setRoute("students"); return; }
     setDonateContext({ student: null, school });
     setDonateOpen(true);
   }
@@ -483,6 +749,12 @@ function App() {
     setDonateOpen(false);
   }
 
+  function handleApplication(newStudent) {
+    // In a real app this would be pending review; for the demo we'll append with a badge
+    setStudents(prev => [newStudent, ...prev]);
+    setRoute("students");
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <TopNav onNavigate={setRoute} route={route} />
@@ -499,6 +771,7 @@ function App() {
           </section>
         </div>
       </>)}
+
       {route === "students" && (
         <StudentsPage data={students} onDonate={handleDonateToStudent} onOpen={handleOpenStudent} />
       )}
@@ -507,6 +780,9 @@ function App() {
       )}
       {route === "funds" && (
         <FundsPage data={students} onDonateFund={handleDonateFund} />
+      )}
+      {route === "apply" && (
+        <ApplyPage onSubmit={handleApplication} />
       )}
       {route === "about" && (
         <AboutPage />
@@ -535,6 +811,7 @@ function App() {
   );
 }
 
-export default function Page() {
-  return <App />;
+export default function Page() { 
+  return <App />; 
 }
+
