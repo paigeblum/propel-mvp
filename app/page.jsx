@@ -193,7 +193,7 @@ function TopNav({ onNavigate, route }) {
 function Hero({ onNavigate }) {
   return (
     <div className="bg-gradient-to-b from-white to-gray-50">
-      <div className="max-w-6xl mx-auto px-4 py-16 grid md:grid-cols-2 gap-10 items-center">
+      <div className="max-w-6xl mx-auto px-4 py-10 md:py-16 grid md:grid-cols-2 gap-10 items-center">
         <div>
           <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-gray-900">
             Help students <span className="text-emerald-600">rise above debt</span>.
@@ -289,7 +289,7 @@ function StudentsPage({ data, onDonate, onOpen }) {
           <p className="text-gray-600">Browse verified profiles and help pay down balances.</p>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
-          <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search name, major, story…" className="px-3 py-2 rounded-xl border w-64" />
+          <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search name, major, story…" className="px-3 py-2 rounded-xl border w-full md:w-64" />
           <select value={school} onChange={(e)=>setSchool(e.target.value)} className="px-3 py-2 rounded-xl border">
             {schools.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -563,13 +563,13 @@ function ApplyPage({ onSubmit }) {
         </div>
         <div className="grid md:grid-cols-3 gap-4">
           <Field label="Remaining Balance (USD)" required>
-            <input type="number" className="w-full px-3 py-2 rounded-xl border" value={form.remainingBalance} onChange={e=>update("remainingBalance", e.target.value)} />
+            <input type="number" inputMode="numeric" pattern="[0-9]*" className="w-full px-3 py-2 rounded-xl border" value={form.remainingBalance} onChange={e=>update("remainingBalance", e.target.value)} />
           </Field>
           <Field label="Total Balance (USD)">
-            <input type="number" className="w-full px-3 py-2 rounded-xl border" value={form.totalBalance} onChange={e=>update("totalBalance", e.target.value)} />
+            <input type="number" inputMode="numeric" pattern="[0-9]*" className="w-full px-3 py-2 rounded-xl border" value={form.totalBalance} onChange={e=>update("totalBalance", e.target.value)} />
           </Field>
           <Field label="Payments Remaining">
-            <input type="number" className="w-full px-3 py-2 rounded-xl border" value={form.paymentsRemaining} onChange={e=>update("paymentsRemaining", e.target.value)} />
+            <input type="number" inputMode="numeric" pattern="[0-9]*" className="w-full px-3 py-2 rounded-xl border" value={form.paymentsRemaining} onChange={e=>update("paymentsRemaining", e.target.value)} />
           </Field>
         </div>
         <div className="grid md:grid-cols-3 gap-4">
@@ -580,7 +580,7 @@ function ApplyPage({ onSubmit }) {
             <input className="w-full px-3 py-2 rounded-xl border" value={form.jobTitle} onChange={e=>update("jobTitle", e.target.value)} />
           </Field>
           <Field label="Annual Salary (USD)">
-            <input type="number" className="w-full px-3 py-2 rounded-xl border" value={form.salary} onChange={e=>update("salary", e.target.value)} />
+            <input type="number" inputMode="numeric" pattern="[0-9]*" className="w-full px-3 py-2 rounded-xl border" value={form.salary} onChange={e=>update("salary", e.target.value)} />
           </Field>
         </div>
 
@@ -712,7 +712,35 @@ function Footer() {
   );
 }
 
-function App() {
+function MobileTabBar({ route, onNavigate }) {
+  const items = [
+    { id: "home", label: "Home" },
+    { id: "students", label: "Students" },
+    { id: "funds", label: "Funds" },
+    { id: "apply", label: "Apply" },
+    { id: "about", label: "About" },
+  ];
+  return (
+    <nav className="fixed bottom-0 inset-x-0 z-50 md:hidden border-t bg-white/95 backdrop-blur">
+      <div className="max-w-6xl mx-auto grid grid-cols-5">
+        {items.map(it => (
+          <button
+            key={it.id}
+            className={classNames(
+              "py-3 text-sm font-medium",
+              route === it.id ? "text-emerald-700" : "text-gray-700 hover:bg-gray-50"
+            )}
+            onClick={() => onNavigate(it.id)}
+          >
+            {it.label}
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+export default function App() {
   const [route, setRoute] = useState("home");
   const [students, setStudents] = useState(SAMPLE_STUDENTS);
   const [selected, setSelected] = useState(null);
@@ -756,7 +784,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen bg-gray-50 text-gray-900 pb-20 md:pb-0">
       <TopNav onNavigate={setRoute} route={route} />
       {route === "home" && (<>
         <Hero onNavigate={setRoute} />
@@ -800,6 +828,8 @@ function App() {
 
       <Footer />
 
+      <MobileTabBar route={route} onNavigate={setRoute} />
+
       <DonateModal
         open={donateOpen}
         onClose={()=>setDonateOpen(false)}
@@ -810,8 +840,3 @@ function App() {
     </div>
   );
 }
-
-export default function Page() { 
-  return <App />; 
-}
-
